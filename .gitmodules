@@ -1,0 +1,3 @@
+[submodule "laser/svg_to_gcode"]
+	path = laser/svg_to_gcode
+	url = git@github.com:dapperfu/svg_to_gcode.git

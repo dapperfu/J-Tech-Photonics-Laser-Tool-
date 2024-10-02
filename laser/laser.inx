@@ -48,8 +48,9 @@
                 <option value="center">center</option>
                 <option value="top-left">top-left</option>
             </param>
+            <param name="g92_start" type="bool" gui-text="Zero-Axis Before Start (G92)">false</param>
             <param name="invert_y_axis" type="bool" gui-text="Invert Y-Axis">false</param>
-             <param name="bed_use_document" type="bool" gui-text="Use Document Size for Bed Size">false</param>
+            <param name="bed_use_document" type="bool" gui-text="Use Document Size for Bed Size">false</param>
             <param name="bed_width" type="float" min="0" max="999999" gui-text="Bed X Width (unit)">200</param>
             <param name="bed_height" type="float" min="0" max="999999" gui-text="Bed Y Length (unit)">200</param>
             <spacer/>

@@ -1,13 +1,18 @@
 import os
-
-from lxml import etree
+import re
 from xml.etree import ElementTree as xml_tree
-from inkex import EffectExtension, Boolean
 
-from svg_to_gcode.svg_parser import parse_root, Transformation, debug_methods
-from svg_to_gcode.geometry import LineSegmentChain
-from svg_to_gcode.compiler import Compiler, interfaces
+from inkex import Boolean
+from inkex import EffectExtension
+from lxml import etree
+
 from svg_to_gcode import TOLERANCES
+from svg_to_gcode.compiler import Compiler
+from svg_to_gcode.compiler import interfaces
+from svg_to_gcode.geometry import LineSegmentChain
+from svg_to_gcode.svg_parser import debug_methods
+from svg_to_gcode.svg_parser import parse_root
+from svg_to_gcode.svg_parser import Transformation
 
 svg_name_space = "http://www.w3.org/2000/svg"
 inkscape_name_space = "http://www.inkscape.org/namespaces/inkscape"
@@ -34,6 +39,29 @@ def generate_custom_interface(laser_off_command, laser_power_command):
     return CustomInterface
 
 
+def get_bed_size(document):
+    # Use bed size instead of specified bed size.
+    bed_width = document.options.bed_width
+    bed_height = document.options.bed_height
+
+    if document.options.bed_use_document:
+        # Parse the width
+        match = re.match(r"([0-9.]+)([a-zA-Z]+)", document.svg.get("width"))
+        if match:
+            bed_width = float(
+                match.group(1)
+            )  # Extract and convert the numeric part to float
+        # Parse the height
+        match = re.match(r"([0-9.]+)([a-zA-Z]+)", document.svg.get("height"))
+        if match:
+            bed_height = float(
+                match.group(1)
+            )  # Extract and convert the numeric part to float
+
+    self.debug("Hello World")
+    return bed_width, bed_height
+
+
 class GcodeExtension(EffectExtension):
     """Inkscape Effect Extension."""
 
@@ -46,7 +74,9 @@ class GcodeExtension(EffectExtension):
         root = self.document.getroot()
 
         # Change svg_to_gcode's approximation tolerance
-        TOLERANCES["approximation"] = float(self.options.approximation_tolerance.replace(',', '.'))
+        TOLERANCES["approximation"] = float(
+            self.options.approximation_tolerance.replace(",", ".")
+        )
 
         try:
             assert os.path.isdir(self.options.directory)
@@ -57,45 +87,56 @@ class GcodeExtension(EffectExtension):
         # Construct output path
         if self.options.filename:
             filename = self.options.filename
-            if '.' not in filename:
+            if "." not in filename:
                 filename += ".gcode"
         elif self.document_path():
-            filename, extension = self.document_path().split('.')
-            filename = filename.split('/')[-1] + '.gcode'
+            filename, extension = self.document_path().split(".")
+            filename = filename.split("/")[-1] + ".gcode"
         else:
             filename = "untitled.gcode"
 
         output_path = os.path.join(self.options.directory, filename)
 
         if self.options.filename_suffix:
-            filename, extension = output_path.split('.')
-
+            filename, extension = os.path.splitext(output_path)
             n = 1
             while os.path.isfile(output_path):
-                output_path = filename + str(n) + '.' + extension
+                output_path = filename + str(n) + "." + extension
                 n += 1
 
+        bed_width, bed_height = get_bed_size(self)
+
+        with open("/tmp/laser_debug.txt", "a") as fid:
+            for key, value in self.option.items():
+                print(f"{key}: {value}", file=fid)
+
+        if self.options.g92_start:
+            self.debug(f"Document width: {bed_width}, height: {bed_height}")
         # Load header and footer files
         header = []
         if self.options.header_path is not None:
             if os.path.isfile(self.options.header_path):
-                with open(self.options.header_path, 'r') as header_file:
+                with open(self.options.header_path, "r") as header_file:
                     header = header_file.read().splitlines()
-            elif self.options.header_path != os.getcwd():  # The Inkscape file selector defaults to the working directory
+            elif (
+                self.options.header_path != os.getcwd()
+            ):  # The Inkscape file selector defaults to the working directory
                 self.debug(f"Header file does not exist at {self.options.header_path}")
                 exit(2)
 
         footer = []
         if self.options.footer_path is not None:
             if os.path.isfile(self.options.footer_path):
-                with open(self.options.footer_path, 'r') as footer_file:
+                with open(self.options.footer_path, "r") as footer_file:
                     footer = footer_file.read().splitlines()
             elif self.options.footer_path != os.getcwd():
                 self.debug(f"Footer file does not exist at {self.options.footer_path}")
                 exit(2)
 
         # Customize header/footer
-        custom_interface = generate_custom_interface(self.options.tool_off_command, self.options.tool_power_command)
+        custom_interface = generate_custom_interface(
+            self.options.tool_off_command, self.options.tool_power_command
+        )
         interface_instance = custom_interface()
 
         if self.options.do_laser_off_start:
@@ -107,34 +148,42 @@ class GcodeExtension(EffectExtension):
         if self.options.do_z_axis_start:
             header.append(interface_instance.linear_move(z=self.options.z_axis_start))
         if self.options.move_to_origin_end:
-            footer.append(interface_instance.set_movement_speed(self.options.travel_speed))
+            footer.append(
+                interface_instance.set_movement_speed(self.options.travel_speed)
+            )
             footer.append(interface_instance.linear_move(x=0, y=0))
 
         # Generate gcode
-        gcode_compiler = Compiler(custom_interface, self.options.travel_speed, self.options.cutting_speed,
-                                  self.options.pass_depth, dwell_time=self.options.dwell_time, custom_header=header,
-                                  custom_footer=footer, unit=self.options.unit)
+        gcode_compiler = Compiler(
+            custom_interface,
+            self.options.travel_speed,
+            self.options.cutting_speed,
+            self.options.pass_depth,
+            dwell_time=self.options.dwell_time,
+            custom_header=header,
+            custom_footer=footer,
+            unit=self.options.unit,
+        )
 
         transformation = Transformation()
 
-        transformation.add_translation(self.options.horizontal_offset, self.options.vertical_offset)
+        transformation.add_translation(
+            self.options.horizontal_offset, self.options.vertical_offset
+        )
         transformation.add_scale(self.options.scaling_factor)
 
-        if self.options.bed_use_document:
-            bed_width = self.svg.get('width')
-            bed_height = self.svg.get('height')
-        else:
-            bed_width = self.options.bed_widtt
-            bed_height = self.options.bed_height
-
         if self.options.machine_origin == "center":
-            transformation.add_translation(-self.options.bed_width / 2, self.options.bed_height / 2)
+            transformation.add_translation(-bed_width / 2, bed_height / 2)
         elif self.options.machine_origin == "top-left":
-            transformation.add_translation(0, self.options.bed_height)
+            transformation.add_translation(0, bed_height)
 
         self.clear_debug()
-        curves = parse_root(root, transform_origin=not self.options.invert_y_axis, root_transformation=transformation,
-                            canvas_height=self.options.bed_height)
+        curves = parse_root(
+            root,
+            transform_origin=not self.options.invert_y_axis,
+            root_transformation=transformation,
+            canvas_height=bed_height,
+        )
 
         gcode_compiler.append_curves(curves)
         gcode_compiler.compile_to_file(output_path, passes=self.options.passes)
@@ -152,8 +201,7 @@ class GcodeExtension(EffectExtension):
 
         root = self.document.getroot()
         origin = self.options.machine_origin
-        bed_width = self.options.bed_width
-        bed_height = self.options.bed_height
+        bed_width, bed_height = get_bed_size(self)
 
         group = etree.Element("{%s}g" % svg_name_space)
         group.set("id", "debug_traces")
@@ -161,7 +209,12 @@ class GcodeExtension(EffectExtension):
         group.set("{%s}label" % inkscape_name_space, "debug traces")
 
         group.append(
-            etree.fromstring(xml_tree.tostring(debug_methods.arrow_defs(arrow_scale=self.options.debug_arrow_scale))))
+            etree.fromstring(
+                xml_tree.tostring(
+                    debug_methods.arrow_defs(arrow_scale=self.options.debug_arrow_scale)
+                )
+            )
+        )
 
         for curve in curves:
             approximation = LineSegmentChain.line_segment_approximation(curve)
@@ -176,9 +229,14 @@ class GcodeExtension(EffectExtension):
                 change_origin.add_translation(bed_width / 2, bed_height / 2)
 
             path_string = xml_tree.tostring(
-                debug_methods.to_svg_path(approximation, color="red", opacity="0.5",
-                                          stroke_width=f"{self.options.debug_line_width}px",
-                                          transformation=change_origin, draw_arrows=True)
+                debug_methods.to_svg_path(
+                    approximation,
+                    color="red",
+                    opacity="0.5",
+                    stroke_width=f"{self.options.debug_line_width}px",
+                    transformation=change_origin,
+                    draw_arrows=True,
+                )
             )
 
             group.append(etree.fromstring(path_string))
@@ -190,21 +248,39 @@ class GcodeExtension(EffectExtension):
         root = self.document.getroot()
         unit = self.options.unit
         origin = self.options.machine_origin
-        bed_width = self.options.bed_width
-        bed_height = self.options.bed_height
+
+        bed_width, bed_height = get_bed_size(self)
 
         group = etree.Element("{%s}g" % svg_name_space)
         group.set("id", "debug_references")
         group.set("{%s}groupmode" % inkscape_name_space, "layer")
         group.set("{%s}label" % inkscape_name_space, "debug reference points")
 
-        reference_points_svg = [(0, 0), (0, bed_height), (bed_width, 0), (bed_width, bed_height)]
+        reference_points_svg = [
+            (0, 0),
+            (0, bed_height),
+            (bed_width, 0),
+            (bed_width, bed_height),
+        ]
         reference_points_gcode = {
-            "bottom-left": [(0, bed_height), (0, 0), (bed_width, bed_height), (bed_width, 0)],
-            "top-left": [(0, 0), (0, bed_height), (bed_width, 0), (bed_width, bed_height)],
-            "center": [(-bed_width / 2, bed_height / 2), (-bed_width / 2, -bed_height / 2),
-                       (bed_width / 2, bed_height / 2),
-                       (bed_width / 2, -bed_height / 2)]
+            "bottom-left": [
+                (0, bed_height),
+                (0, 0),
+                (bed_width, bed_height),
+                (bed_width, 0),
+            ],
+            "top-left": [
+                (0, 0),
+                (0, bed_height),
+                (bed_width, 0),
+                (bed_width, bed_height),
+            ],
+            "center": [
+                (-bed_width / 2, bed_height / 2),
+                (-bed_width / 2, -bed_height / 2),
+                (bed_width / 2, bed_height / 2),
+                (bed_width / 2, -bed_height / 2),
+            ],
         }[origin]
         for i, (x, y) in enumerate(reference_points_svg):
             reference_point = etree.Element("{%s}g" % svg_name_space)
@@ -285,7 +361,9 @@ class GcodeExtension(EffectExtension):
         arguments = self.read_arguments()
 
         for arg in arguments:
-            arg_parser.add_argument("--" + arg["name"], type=arg["type"], dest=arg["name"])
+            arg_parser.add_argument(
+                "--" + arg["name"], type=arg["type"], dest=arg["name"]
+            )
 
     @staticmethod
     def read_arguments():
@@ -297,7 +375,6 @@ class GcodeExtension(EffectExtension):
         arguments = []  # [{name, type, ...}]
         namespace = "http://www.inkscape.org/namespace/inkscape/extension"
         for arg in root.iter("{%s}param" % namespace):
-
             name = arg.attrib["name"]
 
             arg_type = arg.attrib["type"]
@@ -305,7 +382,14 @@ class GcodeExtension(EffectExtension):
             if arg_type in ["description", "notebook"]:
                 continue
 
-            types = {"int": int, "float": float, "bool": Boolean, "string": str, "optiongroup": str, "path": str}
+            types = {
+                "int": int,
+                "float": float,
+                "bool": Boolean,
+                "string": str,
+                "optiongroup": str,
+                "path": str,
+            }
 
             arguments.append({"name": name, "type": types[arg_type]})
 
@@ -315,6 +399,6 @@ class GcodeExtension(EffectExtension):
         return arguments
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     effect = GcodeExtension()
     effect.run()

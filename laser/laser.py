@@ -20,6 +20,17 @@ sodipodi_name_space = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
 
 inx_filename = "laser.inx"
 
+def extract_number(input_str: str) -> float:
+    num_str = ''
+    
+    for char in input_str:
+        if char.isdigit() or char == '.':
+            num_str += char
+        elif num_str:
+            # Once we encounter a non-numeric character after collecting some numbers, break out
+            break
+    
+    return float(num_str) if num_str else None
 
 def generate_custom_interface(laser_off_command, laser_power_command):
     """Wrapper function for generating a Gcode interface with a custom laser power command"""
@@ -140,27 +151,21 @@ class GcodeExtension(EffectExtension):
         )
         transformation.add_scale(self.options.scaling_factor)
 
-        if self.options.use_document_size:
-            self.debug("This is a notification from the plugin.")
-            errormsg("This is an error notification.")
-
-        bed_width = self.options.bed_width
-        bed_height = self.options.bed_height
-
+        bed_width, bed_height = self.get_bed_size()
 
         if self.options.machine_origin == "center":
             transformation.add_translation(
                 -bed_width / 2, bed_height / 2
             )
         elif self.options.machine_origin == "top-left":
-            transformation.add_translation(0, self.options.bed_height)
+            transformation.add_translation(0, bed_height)
 
         self.clear_debug()
         curves = parse_root(
             root,
             transform_origin=not self.options.invert_y_axis,
             root_transformation=transformation,
-            canvas_height=self.options.bed_height,
+            canvas_height=bed_height,
         )
 
         gcode_compiler.append_curves(curves)
@@ -174,13 +179,22 @@ class GcodeExtension(EffectExtension):
 
         return self.document
 
+    def get_bed_size(self):
+        if self.options.use_document_size:
+            bed_width = extract_number(self.document.getroot().get("width"))
+            bed_height = extract_number(self.document.getroot().get("height"))
+        else:
+            bed_width = self.options.bed_width
+            bed_height = self.options.bed_height
+        return bed_width, bed_height
+
     def draw_debug_traces(self, curves):
         """Traces arrows over all parsed paths"""
 
         root = self.document.getroot()
         origin = self.options.machine_origin
-        bed_width = self.options.bed_width
-        bed_height = self.options.bed_height
+        
+        bed_width, bed_height = self.get_bed_size()
 
         group = etree.Element("{%s}g" % svg_name_space)
         group.set("id", "debug_traces")
@@ -227,8 +241,8 @@ class GcodeExtension(EffectExtension):
         root = self.document.getroot()
         unit = self.options.unit
         origin = self.options.machine_origin
-        bed_width = self.options.bed_width
-        bed_height = self.options.bed_height
+        
+        bed_width, bed_height = self.get_bed_size()
 
         group = etree.Element("{%s}g" % svg_name_space)
         group.set("id", "debug_references")
@@ -377,7 +391,11 @@ class GcodeExtension(EffectExtension):
 
         return arguments
 
-
 if __name__ == "__main__":
-    effect = GcodeExtension()
-    effect.run()
+    try:
+        import inkscape_ExtensionDevTools
+        inkscape_ExtensionDevTools.inkscape_run_debug()
+        effect = GcodeExtension()
+        effect.run()
+    except:
+        pass

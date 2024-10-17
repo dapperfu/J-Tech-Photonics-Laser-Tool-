@@ -118,7 +118,12 @@ class GcodeExtension(EffectExtension):
         custom_interface = generate_custom_interface(
             self.options.tool_off_command, self.options.tool_power_command
         )
+
         interface_instance = custom_interface()
+
+        
+        if self.options.zero_machine:
+            header.append(interface_instance.set_origin_at_position())
 
         if self.options.do_laser_off_start:
             header.append(interface_instance.laser_off())

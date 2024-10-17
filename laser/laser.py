@@ -392,10 +392,5 @@ class GcodeExtension(EffectExtension):
         return arguments
 
 if __name__ == "__main__":
-    try:
-        import inkscape_ExtensionDevTools
-        inkscape_ExtensionDevTools.inkscape_run_debug()
-        effect = GcodeExtension()
-        effect.run()
-    except:
-        pass
+    effect = GcodeExtension()
+    effect.run()

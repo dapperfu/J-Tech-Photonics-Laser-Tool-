@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "j-tech-photonics-laser-tool"
+version = "2.0.0"
+description = "Inkscape extension and CLI tool for generating G-code for laser cutters from SVG files"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "GPL-2.0"}
+authors = [
+    {name = "J Tech Photonics", email = "support@jtechphotonics.com"},
+]
+keywords = ["inkscape", "gcode", "laser", "cnc", "svg"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+tomli = [
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.scripts]
+combine-cut-engrave = "laser.combine_cut_engrave:main"
+
+[project.urls]
+Homepage = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool"
+Documentation = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool"
+Repository = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool"
+Issues = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool/issues"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "N",  # pep8-naming
+    "UP", # pyupgrade
+]
+ignore = [
+    "E402",  # Module level import not at top of file (needed for sys.path manipulation)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

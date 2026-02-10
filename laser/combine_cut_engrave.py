@@ -555,12 +555,12 @@ def combine_cut_engrave(
         if temp_engrave_path and os.path.exists(temp_engrave_path):
             with open(temp_engrave_path) as f:
                 engrave_lines = len(f.readlines())
-        
+
         cut_lines = 0
         if os.path.exists(temp_cut_path):
             with open(temp_cut_path) as f:
                 cut_lines = len(f.readlines())
-        
+
         combine_gcode_files(temp_engrave_path, temp_cut_path, output_path)
 
         # Cleanup temporary files

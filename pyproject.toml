@@ -38,10 +38,10 @@ tomli = [
 laser-gcode = "laser.combine_cut_engrave:entry_point"
 
 [project.urls]
-Homepage = "https://github.com/dapperfu/J-Tech-Photonics-Laser-Tool-"
-Documentation = "https://github.com/dapperfu/J-Tech-Photonics-Laser-Tool-"
-Repository = "https://github.com/dapperfu/J-Tech-Photonics-Laser-Tool-"
-Issues = "https://github.com/dapperfu/J-Tech-Photonics-Laser-Tool-/issues"
+Homepage = "https://github.com/dapperfu/laser-tool"
+Documentation = "https://github.com/dapperfu/laser-tool"
+Repository = "https://github.com/dapperfu/laser-tool"
+Issues = "https://github.com/dapperfu/laser-tool/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["laser"]

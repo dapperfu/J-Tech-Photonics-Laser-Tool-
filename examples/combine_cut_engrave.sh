@@ -9,6 +9,46 @@
 # Usage:
 #   ./examples/combine_cut_engrave.sh input.svg
 #   ./examples/combine_cut_engrave.sh input.svg output.gcode
+#
+# Environment Variables:
+#   All settings can be overridden via environment variables:
+#   TRAVEL_SPEED, ENGRAVE_CUTTING_SPEED, ENGRAVE_POWER, CUT_CUTTING_SPEED, CUT_POWER, etc.
+
+# ============================================================================
+# Configuration Variables (can be overridden by environment variables)
+# ============================================================================
+
+# Travel speed (mm/min) - used for both engrave and cut
+TRAVEL_SPEED="${TRAVEL_SPEED:-3000}"
+
+# Engrave layer settings
+ENGRAVE_CUTTING_SPEED="${ENGRAVE_CUTTING_SPEED:-1000}"
+ENGRAVE_POWER="${ENGRAVE_POWER:-75}"
+
+# Cut layer settings
+CUT_CUTTING_SPEED="${CUT_CUTTING_SPEED:-250}"
+CUT_POWER="${CUT_POWER:-255}"
+
+# Bed size settings
+USE_DOCUMENT_SIZE="${USE_DOCUMENT_SIZE:-true}"
+
+# Other settings (with defaults matching CLI defaults)
+UNIT="${UNIT:-mm}"
+PASSES="${PASSES:-1}"
+PASS_DEPTH="${PASS_DEPTH:-1}"
+DWELL_TIME="${DWELL_TIME:-0}"
+APPROXIMATION_TOLERANCE="${APPROXIMATION_TOLERANCE:-0.01}"
+TOOL_OFF_COMMAND="${TOOL_OFF_COMMAND:-M5;}"
+MACHINE_ORIGIN="${MACHINE_ORIGIN:-bottom-left}"
+ZERO_MACHINE="${ZERO_MACHINE:-false}"
+INVERT_Y_AXIS="${INVERT_Y_AXIS:-false}"
+BED_WIDTH="${BED_WIDTH:-200}"
+BED_HEIGHT="${BED_HEIGHT:-200}"
+HORIZONTAL_OFFSET="${HORIZONTAL_OFFSET:-0}"
+VERTICAL_OFFSET="${VERTICAL_OFFSET:-0}"
+SCALING_FACTOR="${SCALING_FACTOR:-1}"
+
+# ============================================================================
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,9 +63,16 @@ if [ $# -lt 1 ]; then
     echo "generates G-code for each layer with specific settings, and combines"
     echo "them into a single file with engrave first, then cut."
     echo ""
-    echo "Settings:"
-    echo "  Engrave: speed 1000 mm/min, power S75 (29%)"
-    echo "  Cut:     speed 250 mm/min, power S255 (100%)"
+    echo "Current Settings:"
+    echo "  Travel speed:        ${TRAVEL_SPEED} mm/min"
+    echo "  Engrave:             speed ${ENGRAVE_CUTTING_SPEED} mm/min, power S${ENGRAVE_POWER} ($((ENGRAVE_POWER * 100 / 255))%)"
+    echo "  Cut:                 speed ${CUT_CUTTING_SPEED} mm/min, power S${CUT_POWER} ($((CUT_POWER * 100 / 255))%)"
+    echo "  Use document size:   ${USE_DOCUMENT_SIZE}"
+    echo ""
+    echo "Environment Variables:"
+    echo "  All settings can be overridden via environment variables:"
+    echo "  TRAVEL_SPEED, ENGRAVE_CUTTING_SPEED, ENGRAVE_POWER, CUT_CUTTING_SPEED, CUT_POWER,"
+    echo "  USE_DOCUMENT_SIZE, UNIT, PASSES, PASS_DEPTH, DWELL_TIME, etc."
     exit 1
 fi
 
@@ -87,15 +134,38 @@ is_empty_gcode() {
 }
 
 # Generate engrave layer G-code
-# Speed: 1000 mm/min, Power: S75 (29%)
 echo "[1/3] Generating engrave layer G-code..."
-echo "  Settings: Cutting speed=1000 mm/min, Power=S75 (29%)"
-python -m laser.cli "$SVG_FILE" \
-    --layer "engrave" \
-    --cutting-speed 1000 \
-    --tool-power-command "M3 S75;" \
-    --output "$TEMP_ENGRAVE" \
-    --do-laser-off-end 2>&1 | grep -v "UserWarning" || true
+echo "  Settings: Travel speed=${TRAVEL_SPEED} mm/min, Cutting speed=${ENGRAVE_CUTTING_SPEED} mm/min, Power=S${ENGRAVE_POWER} ($((ENGRAVE_POWER * 100 / 255))%)"
+
+# Build command arguments
+ENGRAVE_ARGS=(
+    "$SVG_FILE"
+    --layer "engrave"
+    --unit "$UNIT"
+    --travel-speed "$TRAVEL_SPEED"
+    --cutting-speed "$ENGRAVE_CUTTING_SPEED"
+    --passes "$PASSES"
+    --pass-depth "$PASS_DEPTH"
+    --dwell-time "$DWELL_TIME"
+    --approximation-tolerance "$APPROXIMATION_TOLERANCE"
+    --tool-power-command "M3 S${ENGRAVE_POWER};"
+    --tool-off-command "$TOOL_OFF_COMMAND"
+    --machine-origin "$MACHINE_ORIGIN"
+    --bed-width "$BED_WIDTH"
+    --bed-height "$BED_HEIGHT"
+    --horizontal-offset "$HORIZONTAL_OFFSET"
+    --vertical-offset "$VERTICAL_OFFSET"
+    --scaling-factor "$SCALING_FACTOR"
+    --output "$TEMP_ENGRAVE"
+    --do-laser-off-end
+)
+
+# Add boolean flags
+[ "$ZERO_MACHINE" = "true" ] && ENGRAVE_ARGS+=(--zero-machine) || ENGRAVE_ARGS+=(--no-zero-machine)
+[ "$INVERT_Y_AXIS" = "true" ] && ENGRAVE_ARGS+=(--invert-y-axis) || ENGRAVE_ARGS+=(--no-invert-y-axis)
+[ "$USE_DOCUMENT_SIZE" = "true" ] && ENGRAVE_ARGS+=(--use-document-size) || ENGRAVE_ARGS+=(--no-use-document-size)
+
+python -m laser.cli "${ENGRAVE_ARGS[@]}" 2>&1 | grep -v "UserWarning" || true
 
 if [ $? -ne 0 ]; then
     echo "  ✗ Failed to generate engrave layer G-code"
@@ -111,15 +181,38 @@ fi
 echo ""
 
 # Generate cut layer G-code
-# Speed: 250 mm/min, Power: S255 (100%)
 echo "[2/3] Generating cut layer G-code..."
-echo "  Settings: Cutting speed=250 mm/min, Power=S255 (100%)"
-python -m laser.cli "$SVG_FILE" \
-    --layer "cut" \
-    --cutting-speed 250 \
-    --tool-power-command "M3 S255;" \
-    --output "$TEMP_CUT" \
-    --do-laser-off-end 2>&1 | grep -v "UserWarning" || true
+echo "  Settings: Travel speed=${TRAVEL_SPEED} mm/min, Cutting speed=${CUT_CUTTING_SPEED} mm/min, Power=S${CUT_POWER} ($((CUT_POWER * 100 / 255))%)"
+
+# Build command arguments
+CUT_ARGS=(
+    "$SVG_FILE"
+    --layer "cut"
+    --unit "$UNIT"
+    --travel-speed "$TRAVEL_SPEED"
+    --cutting-speed "$CUT_CUTTING_SPEED"
+    --passes "$PASSES"
+    --pass-depth "$PASS_DEPTH"
+    --dwell-time "$DWELL_TIME"
+    --approximation-tolerance "$APPROXIMATION_TOLERANCE"
+    --tool-power-command "M3 S${CUT_POWER};"
+    --tool-off-command "$TOOL_OFF_COMMAND"
+    --machine-origin "$MACHINE_ORIGIN"
+    --bed-width "$BED_WIDTH"
+    --bed-height "$BED_HEIGHT"
+    --horizontal-offset "$HORIZONTAL_OFFSET"
+    --vertical-offset "$VERTICAL_OFFSET"
+    --scaling-factor "$SCALING_FACTOR"
+    --output "$TEMP_CUT"
+    --do-laser-off-end
+)
+
+# Add boolean flags
+[ "$ZERO_MACHINE" = "true" ] && CUT_ARGS+=(--zero-machine) || CUT_ARGS+=(--no-zero-machine)
+[ "$INVERT_Y_AXIS" = "true" ] && CUT_ARGS+=(--invert-y-axis) || CUT_ARGS+=(--no-invert-y-axis)
+[ "$USE_DOCUMENT_SIZE" = "true" ] && CUT_ARGS+=(--use-document-size) || CUT_ARGS+=(--no-use-document-size)
+
+python -m laser.cli "${CUT_ARGS[@]}" 2>&1 | grep -v "UserWarning" || true
 
 if [ $? -ne 0 ]; then
     echo "  ✗ Failed to generate cut layer G-code"
@@ -193,10 +286,10 @@ if [ $? -eq 0 ]; then
     echo "Output file: $OUTPUT_FILE"
     if [ -n "$TEMP_ENGRAVE" ] && [ -f "$TEMP_ENGRAVE" ]; then
         ENGRAVE_LINES=$(wc -l < "$TEMP_ENGRAVE" | tr -d ' ')
-        echo "Engrave layer: $ENGRAVE_LINES lines (speed: 1000 mm/min, power: S75)"
+        echo "Engrave layer: $ENGRAVE_LINES lines (speed: ${ENGRAVE_CUTTING_SPEED} mm/min, power: S${ENGRAVE_POWER})"
     fi
     CUT_LINES=$(wc -l < "$TEMP_CUT" | tr -d ' ')
-    echo "Cut layer:    $CUT_LINES lines (speed: 250 mm/min, power: S255)"
+    echo "Cut layer:    $CUT_LINES lines (speed: ${CUT_CUTTING_SPEED} mm/min, power: S${CUT_POWER})"
     TOTAL_LINES=$(wc -l < "$OUTPUT_FILE" | tr -d ' ')
     echo "Total:        $TOTAL_LINES lines"
     echo ""

@@ -43,6 +43,9 @@ Documentation = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool"
 Repository = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool"
 Issues = "https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool/issues"
 
+[tool.hatch.build.targets.wheel]
+packages = ["laser"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

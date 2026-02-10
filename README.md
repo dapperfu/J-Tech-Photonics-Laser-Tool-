@@ -3,9 +3,14 @@
 A fork for adding small features I find helpful.
 
 - "Use document size as bed size" checkbox so you don't have to enter the document size twice.
+- Layer selection: Process specific layers from an SVG file (e.g., separate "cut" and "engrave" layers)
+- Standalone CLI tool: Convert SVG to G-code from the command line without Inkscape GUI
+- Self-contained codebase: Single `git clone` command works - no submodule initialization needed
 
 # J Tech Photonics Laser Tool (Community version)
 This Inkscape extension generates gcode for laser cutters and plotting machines from an SVG file.
+
+The codebase is now fully self-contained. Simply clone the repository and you're ready to go - no submodule initialization required.
 
 Version 2.0 just released and there are a lot of changes! If you want you can still access legacy releases (below 2.0) 
  on the [releases page](https://github.com/JTechPhotonics/J-Tech-Photonics-Laser-Tool/releases).
@@ -60,6 +65,74 @@ correctly.
 
 Note: debug layers are reset everytime you run the extension. So make sure you don't accidentally add any objects to them 
 or they will be deleted.
+
+## Layer Selection
+
+You can process specific layers from an SVG file by specifying the layer name. This is useful when you have separate layers for different operations (e.g., "cut" and "engrave").
+
+### In Inkscape Extension
+
+1. In the extension dialog, go to the "Coordinate System and Transformations" tab
+2. Enter the layer name in the "Layer Name" field (leave empty to process all layers)
+3. The output filename will automatically include the layer name (e.g., `output_cut.gcode`)
+
+### Using CLI Tool
+
+```bash
+# Process only the "cut" layer
+python -m laser.cli input.svg --layer "cut" -o output_cut.gcode
+
+# Process only the "engrave" layer
+python -m laser.cli input.svg --layer "engrave" -o output_engrave.gcode
+```
+
+This allows you to generate separate G-code files for different operations from the same SVG file.
+
+## Command-Line Interface
+
+The tool includes a standalone CLI that can convert SVG files to G-code without requiring the Inkscape GUI.
+
+### Installation
+
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+### Basic Usage
+
+```bash
+# Simple conversion
+python -m laser.cli input.svg -o output.gcode
+
+# With layer selection
+python -m laser.cli input.svg --layer "cut" -o output_cut.gcode
+
+# Custom speeds and passes
+python -m laser.cli input.svg \
+    --travel-speed 5000 \
+    --cutting-speed 1000 \
+    --passes 3 \
+    -o output.gcode
+```
+
+### Available Options
+
+- `--layer, -l`: Process only the specified layer (by Inkscape label)
+- `--output, -o`: Output G-code file path
+- `--unit, -u`: Unit of measurement (mm or in)
+- `--travel-speed, -t`: Travel speed (unit/min)
+- `--cutting-speed, -c`: Cutting speed (unit/min)
+- `--passes, -p`: Number of passes
+- `--pass-depth`: Pass depth (unit)
+- `--machine-origin`: Machine origin (bottom-left, center, top-left)
+- `--bed-width`: Bed X width (unit)
+- `--bed-height`: Bed Y length (unit)
+- `--header-file`: Custom G-code header file
+- `--footer-file`: Custom G-code footer file
+- And many more... (use `--help` to see all options)
+
+See the `examples/` directory for more usage examples.
 
 ## Contribute
 

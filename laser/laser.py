@@ -83,14 +83,19 @@ class GcodeExtension(EffectExtension):
         else:
             filename = "untitled.gcode"
 
+        # If layer_name is specified, add it to the filename
+        if self.options.layer_name:
+            base_name, extension = filename.rsplit(".", 1) if "." in filename else (filename, "gcode")
+            filename = f"{base_name}_{self.options.layer_name}.{extension}"
+
         output_path = os.path.join(self.options.directory, filename)
 
         if self.options.filename_suffix:
-            filename, extension = output_path.split(".")
+            filename_base, extension = output_path.rsplit(".", 1)
 
             n = 1
             while os.path.isfile(output_path):
-                output_path = filename + str(n) + "." + extension
+                output_path = f"{filename_base}{n}.{extension}"
                 n += 1
 
         # Load header and footer files
@@ -166,11 +171,13 @@ class GcodeExtension(EffectExtension):
             transformation.add_translation(0, bed_height)
 
         self.clear_debug()
+        layer_name = self.options.layer_name.strip() if self.options.layer_name else None
         curves = parse_root(
             root,
             transform_origin=not self.options.invert_y_axis,
             root_transformation=transformation,
             canvas_height=bed_height,
+            layer_name=layer_name,
         )
 
         gcode_compiler.append_curves(curves)

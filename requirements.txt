@@ -1,4 +1,8 @@
-# svg-to-gcode must be packaged with the extension
-svg-to-gcode
+# svg_to_gcode is now included in the codebase (laser/svg_to_gcode/)
+# No need to install it separately
 
-# inkex and lxml are provided by Inkscape
+# CLI tool dependencies
+click
+tomli; python_version < "3.11"
+
+# inkex and lxml are provided by Inkscape when running as an extension
